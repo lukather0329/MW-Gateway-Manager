@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  username            String   @unique
+  passwordHash        String
+  role                String   @default("ADMIN")
+  failedLoginAttempts Int      @default(0)
+  lockedUntil         DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Program {
+  id                  String    @id @default(cuid())
+  name                String
+  description         String?
+  domain              String    @unique
+  targetProtocol      String    // "http" | "https"
+  targetHost          String
+  targetPort          Int
+  healthCheckPath     String?
+  websocketEnabled    Boolean   @default(false)
+  sslEnabled          Boolean   @default(true)
+  enabled             Boolean   @default(true)
+  configFileName      String
+  configStatus        String    @default("NOT_APPLIED")
+  healthStatus        String    @default("UNKNOWN")
+  lastHealthCheckedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  healthChecks ProgramHealthCheck[]
+  revisions    ApacheConfigRevision[]
+  devices      Device[]
+}
+
+model ProgramHealthCheck {
+  id             String   @id @default(cuid())
+  programId      String
+  program        Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  status         String
+  tcpOk          Boolean
+  httpOk         Boolean
+  healthOk       Boolean?
+  statusCode     Int?
+  responseTimeMs Int?
+  errorMessage   String?
+  checkedAt      DateTime @default(now())
+}
+
+model ApacheConfigRevision {
+  id         String   @id @default(cuid())
+  programId  String?
+  program    Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  fileName   String
+  action     String   // CREATE | UPDATE | DELETE
+  content    String
+  createdAt  DateTime @default(now())
+  createdBy  String
+}
+
+model ApacheBackup {
+  id             String    @id @default(cuid())
+  folderName     String    @unique
+  reason         String
+  createdBy      String
+  manifestJson   String
+  testResult     String?
+  applyResult    String?
+  restored       Boolean   @default(false)
+  restoredAt     DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  action         String
+  actorUsername  String?
+  targetType     String?
+  targetId       String?
+  detail         String?
+  result         String   // SUCCESS | FAILURE
+  createdAt      DateTime @default(now())
+}
+
+model SystemSetting {
+  id                          Int      @id @default(1)
+  apacheRootPath              String
+  apacheExecutablePath        String
+  apacheVhostsPath            String
+  managedSitesPath            String
+  backupPath                  String
+  sslCertificatePath          String
+  sslCertificateKeyPath       String
+  defaultDomainSuffix         String
+  defaultHealthCheckTimeoutMs Int      @default(3000)
+  includeOptionalApplied      Boolean  @default(false)
+  updatedAt                   DateTime @updatedAt
+}
+
+model Device {
+  id               String    @id @default(cuid())
+  deviceId         String    @unique
+  name             String
+  deviceType       String
+  programId        String?
+  program          Program?  @relation(fields: [programId], references: [id], onDelete: SetNull)
+  location         String?
+  memo             String?
+  enabled          Boolean   @default(true)
+  lastConnectedAt  DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tokens DeviceToken[]
+}
+
+model DeviceToken {
+  id         String    @id @default(cuid())
+  deviceId   String
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  tokenHash  String
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+}

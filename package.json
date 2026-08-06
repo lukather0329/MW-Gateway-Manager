@@ -1,0 +1,18 @@
+{
+  "name": "mw-gateway-manager",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Windows/XAMPP Apache Reverse Proxy management system (MVP)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=apps/server",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=apps/server && npm run build --workspace=apps/web",
+    "test": "npm run test --workspace=apps/server",
+    "lint": "npm run lint --workspace=apps/server && npm run lint --workspace=apps/web"
+  },
+  "devDependencies": {}
+}

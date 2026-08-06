@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.local
+apps/server/prisma/dev.db
+apps/server/prisma/*.db
+apps/server/prisma/*.db-journal
+backups/
+.local-apache-sim/
+coverage/
+.DS_Store
+Thumbs.db
