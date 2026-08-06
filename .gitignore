@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/
+*.tsbuildinfo
 *.log
 .env
 .env.local
@@ -9,6 +10,7 @@ apps/server/prisma/*.db
 apps/server/prisma/*.db-journal
 backups/
 .local-apache-sim/
+.claude/settings.local.json
 coverage/
 .DS_Store
 Thumbs.db
