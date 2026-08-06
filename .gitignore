@@ -14,3 +14,11 @@ backups/
 coverage/
 .DS_Store
 Thumbs.db
+
+# .NET build output for the Git Sync desktop tool (rebuild via
+# scripts/publish-git-sync.ps1 — see tools/git-sync/README.md)
+tools/git-sync/bin/
+tools/git-sync/obj/
+release/
+MW Gateway Git Sync.exe
+*.zip
