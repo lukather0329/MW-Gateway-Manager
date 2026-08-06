@@ -13,6 +13,7 @@ import { services } from '../services/container';
 import { asyncHandler } from '../utils/asyncHandler';
 import { toApacheSettingsInput, toBackupPaths } from '../utils/settingsMapper';
 import { prisma } from '../config/prisma';
+import { recordApplyBackup } from '../utils/recordApplyBackup';
 
 async function checkPortWarnings(
   targetHost: string,
@@ -147,6 +148,12 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
         toBackupPaths(settings),
         existingProgram.domain
       );
+      await recordApplyBackup(
+        toBackupPaths(settings).backupRootPath,
+        removeOutcome,
+        req.session.username,
+        `program-domain-change:${existingProgram.domain}`
+      );
       await services.auditService.log({
         action: 'PROGRAM_DOMAIN_CHANGE_REMOVE_OLD_CONFIG',
         actorUsername: req.session.username,
@@ -199,6 +206,12 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
       program.configFileName,
       toBackupPaths(settings),
       program.domain
+    );
+    await recordApplyBackup(
+      toBackupPaths(settings).backupRootPath,
+      removeOutcome,
+      req.session.username,
+      `program-delete:${program.domain}`
     );
     await services.auditService.log({
       action: 'PROGRAM_DELETE_REMOVE_CONFIG',
@@ -313,6 +326,13 @@ export const apply = asyncHandler(async (req: Request, res: Response) => {
   const newConfigStatus = outcome.success ? 'APPLIED' : outcome.rolledBack ? 'ROLLED_BACK' : 'FAILED';
   await programRepository.update(program.id, { configStatus: newConfigStatus });
 
+  await recordApplyBackup(
+    toBackupPaths(settings).backupRootPath,
+    outcome,
+    req.session.username,
+    `program-${action.toLowerCase()}:${program.domain}`
+  );
+
   if (outcome.content) {
     await prisma.apacheConfigRevision.create({
       data: {
@@ -400,6 +420,12 @@ export const setEnabled = (enabled: boolean) =>
         program.configFileName,
         toBackupPaths(settings),
         program.domain
+      );
+      await recordApplyBackup(
+        toBackupPaths(settings).backupRootPath,
+        outcome,
+        req.session.username,
+        `program-disable:${program.domain}`
       );
       await programRepository.update(program.id, {
         enabled: false,

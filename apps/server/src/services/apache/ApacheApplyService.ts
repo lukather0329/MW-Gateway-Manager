@@ -20,10 +20,12 @@ export interface ApplyOutcome {
   fileName: string;
   content: string | null;
   syntaxTestRaw: string;
+  syntaxValid: boolean | null;
   reloadCode: number | null;
   processRunning: boolean | null;
   rolledBack: boolean;
   message: string;
+  backupFolderName: string;
 }
 
 /**
@@ -108,10 +110,12 @@ export class ApacheApplyService {
         fileName,
         content,
         syntaxTestRaw: '',
+        syntaxValid: null,
         reloadCode: null,
         processRunning: null,
         rolledBack: false,
         message: `설정 파일 쓰기 실패: ${err instanceof Error ? err.message : String(err)}`,
+        backupFolderName: backup.folderName,
       };
     }
 
@@ -124,12 +128,14 @@ export class ApacheApplyService {
         fileName,
         content,
         syntaxTestRaw: test.raw,
+        syntaxValid: false,
         reloadCode: null,
         processRunning: null,
         rolledBack: rollback.restored,
         message: `Apache 문법 검사 실패로 이전 설정으로 복구${
           rollback.restored ? '했습니다' : '를 시도했으나 실패했습니다'
         }.`,
+        backupFolderName: backup.folderName,
       };
     }
 
@@ -142,12 +148,14 @@ export class ApacheApplyService {
         fileName,
         content,
         syntaxTestRaw: test.raw,
+        syntaxValid: true,
         reloadCode: reload.code,
         processRunning: null,
         rolledBack: rollback.restored,
         message: `Apache graceful reload 실패로 이전 설정으로 복구${
           rollback.restored ? '했습니다' : '를 시도했으나 실패했습니다'
         }.`,
+        backupFolderName: backup.folderName,
       };
     }
 
@@ -160,12 +168,14 @@ export class ApacheApplyService {
         fileName,
         content,
         syntaxTestRaw: test.raw,
+        syntaxValid: true,
         reloadCode: reload.code,
         processRunning: false,
         rolledBack: rollback.restored,
         message: `Apache 프로세스가 확인되지 않아 이전 설정으로 복구${
           rollback.restored ? '했습니다' : '를 시도했으나 실패했습니다'
         }.`,
+        backupFolderName: backup.folderName,
       };
     }
 
@@ -175,10 +185,12 @@ export class ApacheApplyService {
       fileName,
       content,
       syntaxTestRaw: test.raw,
+      syntaxValid: true,
       reloadCode: reload.code,
       processRunning: true,
       rolledBack: false,
       message: '설정이 정상적으로 적용되었습니다.',
+      backupFolderName: backup.folderName,
     };
   }
 }

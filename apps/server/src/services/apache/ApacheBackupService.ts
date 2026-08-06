@@ -90,6 +90,15 @@ export class ApacheBackupService {
     return { folderName, folderPath, manifest };
   }
 
+  /** Reads back the manifest for a backup folder created by createBackup(). */
+  async readManifest(backupRootPath: string, folderName: string): Promise<BackupManifest> {
+    const raw = await fs.readFile(
+      path.join(backupRootPath, folderName, 'manifest.json'),
+      'utf-8'
+    );
+    return JSON.parse(raw);
+  }
+
   /** Restores a previous backup folder back onto the live config paths. */
   async restoreBackup(folderPath: string, paths: BackupPaths): Promise<void> {
     const manifestRaw = await fs.readFile(path.join(folderPath, 'manifest.json'), 'utf-8');
