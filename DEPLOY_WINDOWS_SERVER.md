@@ -80,7 +80,7 @@ nssm start MWGatewayManager
 
 프런트엔드(`apps/web/dist`)는 정적 파일이므로, 기존 XAMPP Apache에 별도
 VirtualHost(관리 전용 도메인/포트)를 하나 만들어 정적 파일을 서빙하고
-`/api`를 Node 프로세스(예: `127.0.0.1:4000`)로 프록시하거나, 별도의 경량
+`/api`를 Node 프로세스(예: `127.0.0.1:60807`, `.env`의 `PORT` 값)로 프록시하거나, 별도의 경량
 정적 파일 서버로 서빙합니다. 이 관리용 VirtualHost는 이 시스템이 관리하는
 `mw-sites` 폴더가 아니라 관리자가 수동으로 한 번 구성합니다 (자기 자신을
 등록 대상으로 삼지 않기 위함).
@@ -89,12 +89,12 @@ VirtualHost(관리 전용 도메인/포트)를 하나 만들어 정적 파일을
 
 ```powershell
 New-NetFirewallRule -DisplayName "MW Gateway Manager (internal only)" `
-  -Direction Inbound -Protocol TCP -LocalPort 4000 `
+  -Direction Inbound -Protocol TCP -LocalPort 60807 `
   -RemoteAddress 192.168.0.0/24 -Action Allow
 ```
 
-`RemoteAddress`를 사내망 대역으로 제한하세요. 외부 인터넷에 4000번(API) 포트를
-직접 노출하지 않습니다.
+`RemoteAddress`를 사내망 대역으로 제한하세요. 외부 인터넷에 API 포트(기본값
+`60807`, `.env`의 `PORT`)를 직접 노출하지 않습니다.
 
 ## 7. 관리자 접근 제한
 
@@ -156,7 +156,8 @@ New-NetFirewallRule -DisplayName "MW Gateway Manager (internal only)" `
    (참고로 Windows는 무중단 graceful 재적재 자체를 지원하지 않아 이 시스템은
    `-k restart`를 사용합니다.) 자세한 내용은
    [APACHE_SETUP.md](APACHE_SETUP.md#6-설정-재적용-reload)를 참고하세요.
-1. `http://<서버>:4000/api/health` 가 `{"ok":true}`를 반환하는지 확인.
+1. `http://<서버>:60807/api/health` 가 `{"ok":true}`를 반환하는지 확인 (포트는
+   `.env`의 `PORT` 값과 일치해야 함).
 2. 관리 화면에 로그인.
 3. **Apache 상태** 메뉴에서 "최초 설정 마법사 검사"를 실행해 실제 경로/모듈/인증서가
    모두 정상(✔)인지 확인. (APACHE_SETUP.md 참고)

@@ -93,11 +93,16 @@ npx tsx prisma/seed.ts --username admin --password "충분히-길고-고유한-�
 두 개의 터미널에서 각각 실행합니다.
 
 ```bash
-npm run dev:server   # http://localhost:4000
-npm run dev:web      # http://localhost:5173 (Vite, /api는 4000으로 프록시)
+npm run dev:server   # http://localhost:60807
+npm run dev:web      # http://localhost:60817 (Vite, /api는 60807로 프록시)
 ```
 
-브라우저에서 `http://localhost:5173`로 접속해 로그인합니다.
+포트는 `3000`/`4000`/`5173` 같은 흔한 기본값 대신, 날짜 기반 번호(오늘 기준
+`60807`/`60817`)를 사용합니다 — 이 머신에서 여러 프로젝트를 동시에 띄워두면
+흔한 기본 포트는 충돌하기 쉽기 때문입니다. 새 프로젝트를 추가할 때도 이
+방식(예: `<연도 끝자리><월><일>`)을 따르세요.
+
+브라우저에서 `http://localhost:60817`로 접속해 로그인합니다.
 
 ## 테스트
 

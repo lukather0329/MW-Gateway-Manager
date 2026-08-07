@@ -10,12 +10,15 @@ function required(name: string, fallback?: string): string {
 
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
-  port: Number(process.env.PORT ?? 4000),
+  // Default dev ports are date-derived (today: 2026-08-07 -> 60807), not the
+  // common framework defaults (3000/4000/5173/8080/...), since those
+  // collide across the many local projects on this machine.
+  port: Number(process.env.PORT ?? 60807),
   databaseUrl: required('DATABASE_URL', 'file:./dev.db'),
   sessionSecret: required('SESSION_SECRET', 'dev-only-secret-change-me'),
   loginMaxAttempts: Number(process.env.LOGIN_MAX_ATTEMPTS ?? 5),
   loginLockoutMinutes: Number(process.env.LOGIN_LOCKOUT_MINUTES ?? 15),
-  webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:5173',
+  webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:60817',
 
   apacheRootPath: process.env.APACHE_ROOT_PATH ?? 'D:\\xampp\\apache',
   apacheExecutablePath:

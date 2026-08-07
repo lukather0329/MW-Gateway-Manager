@@ -22,7 +22,7 @@ export default async function setup() {
   process.env.SESSION_SECRET = 'test-secret';
   process.env.LOGIN_MAX_ATTEMPTS = '5';
   process.env.LOGIN_LOCKOUT_MINUTES = '15';
-  process.env.WEB_ORIGIN = 'http://localhost:5173';
+  process.env.WEB_ORIGIN = 'http://localhost:60817';
   process.env.APACHE_ROOT_PATH = path.join(root, 'apache');
   process.env.APACHE_EXECUTABLE_PATH = path.join(root, 'apache', 'bin', 'httpd.exe');
   process.env.APACHE_VHOSTS_PATH = path.join(root, 'apache', 'conf', 'httpd-vhosts.conf');
