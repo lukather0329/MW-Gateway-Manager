@@ -1,6 +1,9 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createAuthenticatedAgent, resetDatabase } from './helpers';
+import { prisma } from '../../../src/config/prisma';
 
 const validProgram = {
   name: '테스트 카메라',
@@ -131,6 +134,36 @@ describe('Program API', () => {
 
     const detail = await agent.get(`/api/programs/${id}`).expect(200);
     expect(detail.body.configStatus).toBe('APPLIED');
+  });
+
+  it('still removes an orphaned config file on delete even when status is not APPLIED/PENDING', async () => {
+    // Regression test: a rolled-back apply can restore mw-sites to a state
+    // where the file DOES exist (e.g. it was left over from an earlier
+    // successful apply). Deleting used to only attempt cleanup when
+    // configStatus was APPLIED or PENDING, silently leaving that file (and
+    // therefore a live VirtualHost for the deleted program's domain)
+    // behind for any other status.
+    const { agent, csrfToken } = await createAuthenticatedAgent();
+    const created = await agent
+      .post('/api/programs')
+      .set('x-csrf-token', csrfToken)
+      .send(validProgram)
+      .expect(201);
+    const id = created.body.program.id;
+
+    await agent.post(`/api/programs/${id}/apply`).set('x-csrf-token', csrfToken).expect(200);
+
+    const confPath = path.join(process.env.APACHE_MANAGED_SITES_PATH as string, 'camera.roboworks.co.kr.conf');
+    await expect(fs.access(confPath)).resolves.toBeUndefined();
+
+    // Simulate the real-world sequence: a later failed re-apply rolled
+    // back to a state where the file from the earlier successful apply is
+    // still on disk, but configStatus now reads ROLLED_BACK, not APPLIED.
+    await prisma.program.update({ where: { id }, data: { configStatus: 'ROLLED_BACK' } });
+
+    await agent.delete(`/api/programs/${id}`).set('x-csrf-token', csrfToken).expect(200);
+
+    await expect(fs.access(confPath)).rejects.toThrow();
   });
 
   it('rejects unauthenticated access', async () => {

@@ -22,10 +22,15 @@ export interface BackupResult {
 }
 
 function timestampFolderName(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number, width = 2) => String(n).padStart(width, '0');
+  // Millisecond resolution: two backups (e.g. an apply immediately
+  // followed by a delete) can easily land in the same second, and the
+  // ApacheBackup table enforces a unique folderName — a second-only
+  // timestamp collided in exactly that scenario during testing.
   return (
     `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-` +
-    `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+    `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}-` +
+    `${pad(date.getMilliseconds(), 3)}`
   );
 }
 

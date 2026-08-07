@@ -141,7 +141,9 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 
   if (domainChanged) {
     configFileName = domainToConfigFileName(domain);
-    if (existingProgram.configStatus === 'APPLIED' || existingProgram.configStatus === 'PENDING') {
+    // See the same-reasoning comment in remove() above: any status other
+    // than NOT_APPLIED can mean a stale file exists for the OLD domain.
+    if (existingProgram.configStatus !== 'NOT_APPLIED') {
       const settings = await services.settingsService.get();
       const removeOutcome = await services.apacheApplyService.removeProgramConfig(
         existingProgram.configFileName,
@@ -200,7 +202,13 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  if (program.configStatus === 'APPLIED' || program.configStatus === 'PENDING') {
+  // Any status other than NOT_APPLIED can mean a .conf file is still
+  // sitting in mw-sites (e.g. a rolled-back UPDATE restores whatever file
+  // state existed before that attempt, which may include a file from an
+  // earlier successful apply) — always attempt cleanup rather than only
+  // for APPLIED/PENDING, so a deleted program never leaves an orphaned
+  // VirtualHost silently proxying its old domain.
+  if (program.configStatus !== 'NOT_APPLIED') {
     const settings = await services.settingsService.get();
     const removeOutcome = await services.apacheApplyService.removeProgramConfig(
       program.configFileName,

@@ -61,10 +61,11 @@ describe('ApacheBackupService (real filesystem, temp directory)', () => {
     await expect(fs.access(path.join(paths.managedSitesPath, 'c.roboworks.co.kr.conf'))).rejects.toThrow();
   });
 
-  it('produces distinct timestamped folder names for consecutive backups', async () => {
+  it('produces distinct timestamped folder names for consecutive backups within the same second', async () => {
+    // Folder names include millisecond resolution specifically so that
+    // two backups in quick succession (e.g. apply immediately followed by
+    // delete) never collide on ApacheBackup's unique folderName column.
     const first = await service.createBackup(paths, 'tester', 'first');
-    // Folder names have 1-second resolution; force a distinct timestamp.
-    await new Promise((resolve) => setTimeout(resolve, 1100));
     const second = await service.createBackup(paths, 'tester', 'second');
     expect(first.folderName).not.toBe(second.folderName);
   });
