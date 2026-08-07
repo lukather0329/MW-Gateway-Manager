@@ -76,12 +76,20 @@
 - 이 경우 아직 아무 파일도 변경되지 않았으므로(쓰기 자체가 실패) 별도의 롤백
   절차가 필요하지 않습니다.
 
-## graceful 실패
+## 설정 재적용(reload) 실패
 
-**증상**: "Apache graceful reload 실패로 이전 설정으로 복구했습니다."
+**증상**: "Apache 설정 재적용(reload) 실패로 이전 설정으로 복구했습니다."
 
-- 문법은 통과했지만 reload 자체가 실패한 드문 경우입니다. Apache 프로세스가
+- **가장 흔한 원인 (실제 확인됨)**: Apache가 Windows 서비스로 등록되지 않은
+  채 그냥 프로세스로 실행 중인 경우입니다. 이 경우 오류 메시지에
+  `AH00436: No installed service named "Apache2.4"`가 포함됩니다. 해결:
+  관리자 권한으로 `httpd.exe -k install` 후 `net start Apache2.4` (자세한
+  내용은 APACHE_SETUP.md 6절).
+- 문법은 통과했지만 reload 자체가 실패한 다른 경우도 있습니다. Apache 프로세스가
   응답 없는 상태이거나 다른 프로세스가 포트를 점유하고 있을 수 있습니다.
+- 참고: 이 시스템은 내부적으로 `httpd.exe -k restart`를 사용합니다 (Windows는
+  무중단 graceful 재적재를 지원하지 않음). 설정이 반영되는 짧은 순간 진행 중이던
+  연결이 끊길 수 있는 것은 정상입니다.
 - Windows 작업 관리자 또는 `tasklist /FI "IMAGENAME eq httpd.exe"`로 Apache
   프로세스 상태를 확인하세요.
 - 자동으로 이전 설정을 복구하고 다시 reload를 시도합니다. 그래도 실패하면

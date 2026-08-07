@@ -90,15 +90,66 @@ D:\xampp\apache\bin\httpd.exe -t
 아니면 반영하지 않고 직전 상태로 되돌립니다. **Apache 상태** 메뉴에서 수동으로도
 실행할 수 있습니다.
 
-## 6. graceful reload
+## 6. 설정 재적용 (reload)
 
 ```powershell
-D:\xampp\apache\bin\httpd.exe -k graceful
+D:\xampp\apache\bin\httpd.exe -k restart
 ```
 
-기본 반영 방식은 `graceful`입니다 (기존 연결을 끊지 않고 설정만 재적재). 환경에
-따라 `-k restart`가 필요할 수 있으나, 이번 MVP는 기본값을 `graceful`로 고정합니다
-(전체 재시작은 순간적으로 서비스 중단을 유발할 수 있어 더 위험합니다).
+이 시스템은 설정을 반영할 때 위 명령을 실행합니다. **Unix/Linux Apache와
+달리 `-k restart`를 씁니다 (`-k graceful`이 아님).** 처음에는 지시서를 따라
+`-k graceful`(무중단 재적재)을 기본값으로 구현했지만, 개발 중 실제 XAMPP
+Apache로 검증하는 과정에서 두 가지를 확인하고 코드를 수정했습니다.
+
+### ⚠️ 확인된 사실 1: Windows는 `-k graceful`을 지원하지 않습니다
+
+Windows의 Apache MPM(`mpm_winnt`)은 애초에 Unix식 무중단(graceful) 재적재를
+구현하지 않습니다. 서비스로 정상 실행 중인 Apache에 `-k graceful`을 보내면
+기존 프로세스에 신호를 보내는 대신 새 리스너를 열려다 실패합니다.
+
+```text
+AH00072: make_sock: could not bind to address 0.0.0.0:80
+AH00451: no listening sockets available, shutting down
+```
+
+`-k restart`는 정상 동작합니다 (관리자 권한 여부, `-n <서비스명>` 옵션 여부와
+무관하게 확인됨). 이 시스템의 `RealApacheCommandRunner`는 항상 `-k restart`를
+사용합니다. **Windows에서는 완전 무중단 재적재 자체가 불가능하므로, 설정을
+반영하는 순간 진행 중이던 연결이 짧게 끊길 수 있습니다.** (전체 재시작
+`net stop`+`net start`보다는 짧고, XAMPP/mpm_winnt 환경에서 쓸 수 있는
+대안이 없습니다.)
+
+### ⚠️ 확인된 사실 2: Apache가 Windows 서비스로 등록되어 있어야 합니다
+
+`-k restart`(와 `-k graceful`) 모두 **Apache가 Windows 서비스로 등록되어 그
+서비스로 실행 중일 때만 동작합니다.** XAMPP를 기본 방식대로 (`apache_start.bat`
+더블클릭이나 XAMPP Control Panel의 일반 Start 버튼으로) 그냥 프로세스로 띄운
+상태에서 실행하면 다음과 같이 실패합니다.
+
+```text
+AH00436: No installed service named "Apache2.4".
+```
+
+이 경우 이 시스템은 (의도대로) 문법 검사까지는 통과시키지만 reload 단계에서
+실패를 감지해 자동으로 이전 설정으로 롤백합니다 — 즉 **안전장치는 정상
+작동하지만, 이 상태로는 어떤 프로그램도 실제로 적용할 수 없습니다.**
+
+운영 서버 배포 전 관리자 권한으로 한 번 서비스로 등록하세요.
+
+```powershell
+cd C:\xampp\apache\bin   # 또는 실제 설치 경로
+.\httpd.exe -k install    # "Apache2.4" 서비스 등록
+net start Apache2.4       # 서비스로 시작
+```
+
+이후 `services.msc`에서 "Apache2.4" 서비스가 "실행 중"인지 확인하세요. XAMPP
+Control Panel을 쓴다면 Apache 행의 "Service" 체크박스를 켜서 서비스로 등록/시작할
+수도 있습니다.
+
+두 조건(서비스 등록 + `-k restart`)을 모두 충족한 뒤, 실제로 프로그램을
+등록→미리보기→적용까지 실행해 `configStatus: APPLIED`로 성공하는 것과, 생성된
+도메인으로 접속 시 Apache가 해당 VirtualHost를 정확히 매칭하는 것(오류 페이지
+하단의 `Server at <도메인>` 표시로 확인 가능)까지 확인했습니다.
 
 ## 7. 수동 복구 방법
 
@@ -110,7 +161,7 @@ D:\xampp\apache\bin\httpd.exe -k graceful
 2. 해당 폴더의 `httpd-vhosts.conf`를 `D:\xampp\apache\conf\extra\httpd-vhosts.conf`로,
    `mw-sites\*.conf` 전체를 `D:\xampp\apache\conf\mw-sites\`로 덮어씁니다.
 3. `D:\xampp\apache\bin\httpd.exe -t`로 문법을 확인합니다.
-4. 정상이면 `D:\xampp\apache\bin\httpd.exe -k graceful`로 반영합니다.
+4. 정상이면 `D:\xampp\apache\bin\httpd.exe -k restart`로 반영합니다.
 5. 관리 화면의 **설정 백업** 메뉴에서 같은 백업을 "이 시점으로 복구" 버튼으로
    실행해도 동일한 절차가 자동으로 수행됩니다 (문법 검사 통과 시에만 reload).
 

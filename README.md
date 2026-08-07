@@ -62,8 +62,10 @@ cp .env.example apps/server/.env
 `APACHE_COMMAND_RUNNER` 환경변수로 Apache 제어 방식을 전환합니다.
 
 - `mock` (기본값): 실제 `httpd.exe`를 실행하지 않습니다. 로컬 개발/자동화 테스트용.
-- `real`: 실제 `httpd.exe -t`, `-k graceful` 등을 실행합니다. **운영 Windows Server
-  에서만 사용하세요.**
+- `real`: 실제 `httpd.exe -t`, `-k restart` 등을 실행합니다. **운영 Windows Server
+  에서만 사용하세요.** (Windows는 무중단 graceful 재적재를 지원하지 않아
+  `-k restart`를 씁니다 — 자세한 내용은 APACHE_SETUP.md 6절. 또한 Apache가
+  Windows 서비스로 등록되어 있어야 동작합니다.)
 
 ### 데이터베이스 초기화
 
@@ -135,8 +137,12 @@ Apache 최초 연결(IncludeOptional 설정, SSL, WebSocket 모듈 확인)은
   (최초 1회, 관리자 승인 후) 추가하고, 이후 모든 프로그램별 설정은 `mw-sites` 폴더에만
   생성/수정합니다.
 - 문법 검사(`httpd.exe -t`)를 통과하지 못하면 어떤 설정도 실제로 반영되지 않으며,
-  `graceful reload` 실패나 Apache 프로세스 미확인 시 자동으로 이전 설정으로
-  복구됩니다. 반면 **대상 프로그램 자체의 연결 실패는 Apache 설정을 롤백하지
-  않고 경고만 표시**합니다 (프로그램이 아직 켜지지 않았을 수 있으므로).
+  설정 재적용(`-k restart`) 실패나 Apache 프로세스 미확인 시 자동으로 이전
+  설정으로 복구됩니다. Windows는 무중단(graceful) 재적재를 지원하지 않아 설정
+  반영 순간 연결이 짧게 끊길 수 있습니다 (APACHE_SETUP.md 6절 참고). 반면
+  **대상 프로그램 자체의 연결 실패는 Apache 설정을 롤백하지 않고 경고만
+  표시**합니다 (프로그램이 아직 켜지지 않았을 수 있으므로).
+- Apache는 반드시 Windows 서비스로 등록되어 실행 중이어야 합니다. 그렇지
+  않으면 설정 재적용이 항상 실패합니다 (DEPLOY_WINDOWS_SERVER.md 참고).
 - SSL 개인키 내용은 DB나 로그에 저장하지 않습니다. 설정 화면에는 인증서/키
   **파일 경로**만 저장합니다.

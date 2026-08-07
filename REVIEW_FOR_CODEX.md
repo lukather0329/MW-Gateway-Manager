@@ -12,11 +12,88 @@ Reverse Proxy용 VirtualHost 설정을 자동 생성하고 백업 → 문법 검
 [docs/ENVIRONMENT_ANALYSIS.md](docs/ENVIRONMENT_ANALYSIS.md), 사용법은
 [README.md](README.md)를 참고하세요.
 
-**중요한 제약**: 이 코드는 실제 Windows Server 2019 + XAMPP가 설치된 서버에
-접근할 수 없는 개발 환경에서 작성/테스트되었습니다. `APACHE_COMMAND_RUNNER=mock`
-및 로컬 `.local-apache-sim` 폴더(gitignore 대상)로 전체 파이프라인을 실제
-파일 I/O까지 포함해 검증했지만, **진짜 `httpd.exe`에 대해서는 한 번도 실행되지
-않았습니다.** 아래 "실제 서버 테스트 절차"를 반드시 운영 서버에서 수행해야 합니다.
+**중요한 제약**: 이 코드는 실제 Windows Server 2019 (운영 서버)에는 접근할 수
+없는 개발 환경에서 작성되었습니다. 다만 2026-08-07에 이 개발 머신(Windows 11)에
+실제 XAMPP Apache 2.4.58이 설치되어, `APACHE_COMMAND_RUNNER=real`로 전환해
+**진짜 `httpd.exe`(Windows 서비스로 등록해 실행 중인 상태)를 대상으로 전체
+파이프라인(프로그램 등록 → 미리보기 → 적용 → 문법검사 → reload → 실제 라우팅
+확인 → 안전한 삭제)을 성공적으로 종단간 검증했습니다** (아래 "실제 Apache로
+검증한 내용과 발견한 문제" 참고). 그 과정에서 코드 버그 1개와, Windows에서
+**반드시 필요한 배포 전제 조건 2개**(Apache를 Windows 서비스로 등록해야 함,
+그리고 reload 명령 자체를 `-k graceful`이 아닌 `-k restart`로 바꿔야 함)를
+발견해 모두 수정/반영했습니다. 다만 이 검증은 여전히 Windows 11 개발 머신
+기준이며, **실제 운영 Windows Server 2019에서는 아직 검증되지 않았습니다.**
+아래 "실제 서버 테스트 절차"를 반드시 운영 서버에서도 수행해야 합니다.
+
+## 실제 Apache로 검증한 내용과 발견한 문제 (2026-08-07)
+
+개발 머신에 XAMPP Apache 2.4.58 (Win64)이 설치된 뒤 `APACHE_COMMAND_RUNNER=real`로
+전환하여 확인한 내용입니다.
+
+1. **모듈 파싱 버그 발견 및 수정** — 실제 `httpd -M` 출력은 첫 줄이
+   `Loaded Modules:` 헤더로 시작하는데, `ApacheModuleInspector`가 이 줄까지
+   모듈명으로 잘못 파싱했습니다 (Mock 테스트 데이터에는 이 헤더 줄이 없어서
+   발견되지 않았음). `(static)`/`(shared)`로 끝나는 줄만 모듈로 인정하도록
+   수정하고, 회귀 테스트를 추가했습니다
+   (`apps/server/src/services/apache/ApacheModuleInspector.ts`,
+   `apps/server/tests/unit/ApacheModuleInspector.test.ts`).
+2. **필수 모듈 검사가 실제로 정확하게 동작함을 확인** — 이 XAMPP 설치는 기본
+   상태에서 `proxy_http_module`, `proxy_wstunnel_module`이 비활성화되어
+   있었고, 시스템이 정확히 이를 감지해 WebSocket 미지원으로 표시했습니다
+   (지시서 5절이 요구한 동작 그대로).
+3. **최초 설정 마법사·IncludeOptional 적용을 실제 파일에 대해 검증** — 실제
+   `httpd-vhosts.conf`에 기존 내용을 전혀 건드리지 않고 `IncludeOptional` 한
+   줄만 추가되는 것을 확인했습니다.
+4. **⚠️ Apache는 Windows 서비스로 등록되어 있어야 함 (필수 배포 전제조건)** —
+   Apache를 (XAMPP 기본 실행 방식처럼) `httpd.exe`를 그냥 콘솔/백그라운드
+   프로세스로 띄운 상태에서는 `-k graceful`/`-k restart` 모두 다음 오류로
+   실패합니다.
+   ```
+   AH00436: No installed service named "Apache2.4".
+   ```
+   이 상태에서 실제로 프로그램을 등록→적용해봤더니, 문법 검사는
+   통과했지만(`Syntax OK`) reload가 이 오류로 실패했고, **시스템이 설계대로
+   정확히 자동 롤백을 수행**했습니다 (`configStatus: ROLLED_BACK`) — 안전장치
+   자체는 완벽히 작동했습니다. 관리자 권한으로 `httpd.exe -k install` 후
+   `net start Apache2.4`로 서비스 등록/시작한 뒤에는 이 오류가 사라집니다.
+   운영 배포 전 **필수 사전 조건**으로 DEPLOY_WINDOWS_SERVER.md와
+   APACHE_SETUP.md에 반영했습니다.
+5. **⚠️ 버그 발견 및 수정: Windows(mpm_winnt)는 `-k graceful`을 지원하지
+   않음** — Apache를 서비스로 등록한 뒤에도 `-k graceful`은 여전히 실패했는데,
+   이번엔 다른 오류였습니다.
+   ```
+   AH00072: make_sock: could not bind to address 0.0.0.0:8080
+   AH00451: no listening sockets available, shutting down
+   ```
+   원인은 Windows의 Apache MPM(`mpm_winnt`)이 Unix식 무중단(graceful) 재적재를
+   지원하지 않기 때문입니다 — `-k graceful`을 서비스로 실행 중인 인스턴스에
+   보내면 기존 프로세스에 신호를 보내는 대신 새 리스너를 바인드하려다 포트
+   충돌로 실패합니다. `-k restart`는 (관리자 권한 여부와 무관하게, `-n` 옵션도
+   불필요하게) 정상 동작하는 것을 확인했습니다. **`RealApacheCommandRunner.
+   gracefulReload()`가 실제로 실행하는 명령을 `-k graceful`에서 `-k restart`로
+   수정했습니다** (인터페이스/메서드명은 호출부 영향을 최소화하기 위해
+   `gracefulReload`로 유지, 실제 실행 명령만 교체). Windows에서 `-k restart`는
+   Unix graceful과 달리 진행 중이던 연결을 짧게 끊을 수 있다는 점을 UI/문서에
+   명시했습니다 (완전 무중단 방식이 Windows에는 없음 — 대안 없음).
+6. **✅ 위 두 가지를 모두 해결한 뒤, 전체 파이프라인이 실제로 성공하는 것을
+   확인함** — 문법 검사 통과 → reload 성공 → 프로세스 확인 →
+   `configStatus: APPLIED`. 실제 도메인으로 Host 헤더를 지정해 `https://<서버>`에
+   요청을 보내보니 응답의 오류 페이지 하단에
+   `Server at camera.roboworks.co.kr Port 443`가 표시되어, Apache가 우리가
+   생성한 VirtualHost를 정확히 매칭해 프록시를 시도했음을 확인했습니다 (백엔드가
+   실제로 없어 503을 반환한 것은 정상 — 대상 프로그램 미기동을 Apache 설정
+   문제로 오판하지 않는다는 정책과 일치). 이어서 프로그램 삭제(안전한 conf 제거
+   + reload)까지 성공을 확인했습니다.
+7. **포트 충돌 확인** — 이 개발 머신은 Windows 기본 IIS(W3SVC)가 80번 포트를
+   이미 점유하고 있어 Apache가 80번으로 뜨지 못했습니다 (443번은 비어있었음).
+   개발 검증 목적으로 `Listen 8080`으로 임시 변경해 우회했습니다. 운영
+   서버에서도 다른 서비스가 80/443을 점유하고 있지 않은지 사전 확인이
+   필요합니다 (`netstat -ano`로 확인).
+
+이 검증에 사용한 httpd.conf 변경(모듈 2개 활성화, Listen 포트 변경, 서비스 등록)은
+이 개발 머신에만 적용된 것이며, 저장소에는 커밋되지 않습니다 (Apache 설치
+자체는 이 프로젝트의 일부가 아님). 코드 변경(모듈 파싱 수정,
+`-k restart`로 전환)만 커밋되었습니다.
 
 ## 현재 구현 범위
 
@@ -25,8 +102,9 @@ Reverse Proxy용 VirtualHost 설정을 자동 생성하고 백업 → 문법 검
   확인 경로), 도메인 중복 차단, 포트 중복 경고(차단 아님)
 - Apache VirtualHost 생성기 (HTTP/HTTPS, WebSocket, SSL, 로그 파일명)
 - 설정 미리보기 (파일에 쓰지 않고 내용만 반환)
-- 안전 적용 파이프라인: 백업 → 파일 쓰기/삭제 → `httpd -t` → `httpd -k graceful`
-  → 프로세스 상태 확인 → 실패 시 자동 롤백
+- 안전 적용 파이프라인: 백업 → 파일 쓰기/삭제 → `httpd -t` → `httpd -k restart`
+  (Windows mpm_winnt는 graceful 미지원 — 실측 확인) → 프로세스 상태 확인 →
+  실패 시 자동 롤백
 - Apache 모듈 검사 (`httpd -M` 파싱), 부족한 모듈이 있으면 적용 자체를 차단하고
   화면에 원인 표시
 - 최초 설정 마법사 (경로/모듈/인증서/문법/IncludeOptional 존재 여부 점검,
@@ -73,11 +151,13 @@ Reverse Proxy용 VirtualHost 설정을 자동 생성하고 백업 → 문법 검
    그 내용을 실제로 로드하는 것은 별개)
 3. `httpd -t` 실행
 4. 실패 시 즉시 백업에서 복원 (파일 원복) 후 종료 — reload는 절대 실행하지 않음
-5. 성공 시 `httpd -k graceful` 실행
+5. 성공 시 `httpd -k restart` 실행 (Windows mpm_winnt는 graceful을 지원하지
+   않아, 실측 확인 후 이 명령으로 확정 — 아래 "실제 Apache로 검증한 내용과
+   발견한 문제" 5번 참고)
 6. reload 실패 또는 프로세스 미확인 시 백업에서 복원 + 재검사 + 재-reload 시도
 7. 모두 성공하면 완료
 
-이 방식의 핵심 안전 불변식: **`httpd -t`가 통과하지 않으면 `-k graceful`을
+이 방식의 핵심 안전 불변식: **`httpd -t`가 통과하지 않으면 reload 명령을
 절대 호출하지 않는다.** 이는 지시서의 핵심 요구사항(장애 방지)을 그대로
 만족시키면서 구현 복잡도를 크게 낮춥니다. Codex 리뷰 시 이 트레이드오프가
 타당한지, 혹은 실제 운영 환경에서 "디스크에 쓰는 순간과 reload 사이의 시간
@@ -194,9 +274,13 @@ apps/server/src/services/apache/
    없습니다. 관리자가 1~3명인 소규모 운영 전제라 위험도는 낮다고 판단했지만,
    Codex가 더 엄격한 리뷰를 원한다면 `ApacheApplyService`에 간단한 뮤텍스를
    추가하는 것을 권장합니다.
-4. **`RealApacheCommandRunner`는 실제 환경에서 미검증**: 위 "프로젝트 개요"
-   참고. `tasklist` 파싱 기반 프로세스 확인 로직도 실제 Windows Server에서
-   재검증이 필요합니다.
+4. **`RealApacheCommandRunner`는 Windows 11 개발 머신에서 전체 파이프라인
+   1회 성공 검증, Windows Server 2019 운영 서버에서는 아직 미검증**: 위 "실제
+   Apache로 검증한 내용과 발견한 문제" 참고. `tasklist` 파싱 기반 프로세스
+   확인 로직과 reload(`-k restart`) 모두 정상 동작을 확인했지만, **Apache가
+   Windows 서비스로 등록되어 있어야만** reload가 동작한다는 전제조건이 있으므로
+   **운영 서버에서 Apache가 서비스로 등록되어 있는지 배포 전 반드시 확인해야
+   합니다** (DEPLOY_WINDOWS_SERVER.md 참고).
 5. **npm audit 경고**: 초기 `npm install` 시 5~7건의 취약점 경고가 표시됩니다
    (대부분 개발 의존성/전이 의존성). 운영 배포 전 `npm audit` 결과를 재검토하고
    필요한 것만 업데이트하는 것을 권장합니다 (breaking change 위험이 있어 이번
@@ -223,7 +307,12 @@ apps/server/src/services/apache/
 - [ ] `ApacheApplyService`의 "디스크에 먼저 쓰고 이후 검사" 방식이 실제 운영
       환경에서도 안전한지 (설계 결정 1 참고)
 - [ ] 동시 적용에 대한 락 필요 여부 (알려진 문제 3)
-- [ ] `RealApacheCommandRunner`의 Windows 프로세스 상태 확인 로직 실전 검증
+- [ ] **Apache가 Windows 서비스로 등록되어 있는지 운영 서버에서 확인** — 아니면
+      모든 "적용"이 reload 단계에서 실패 후 자동 롤백됩니다 (알려진 문제 4 참고,
+      개발 머신에서 이 실패/롤백과 서비스 등록 후 성공 모두 실제로 확인함)
+- [ ] `RealApacheCommandRunner`의 Windows 프로세스 상태 확인 로직·reload
+      (`-k restart`)는 개발 머신에서 전체 파이프라인 성공까지 확인됨 — 운영
+      Windows Server 2019에서 재검증 권장
 - [ ] 세션 저장소를 MemoryStore 이상으로 바꿔야 하는 시점 판단
 - [ ] `npm audit` 결과 재검토
 
@@ -232,6 +321,9 @@ apps/server/src/services/apache/
 운영 배포 전 실제 Windows Server 2019 + XAMPP에서 반드시 아래 순서로
 확인하세요 (DEPLOY_WINDOWS_SERVER.md 10절과 동일).
 
+0. **Apache가 Windows 서비스로 등록되어 실행 중인지 먼저 확인** (`services.msc`
+   에서 확인, 아니면 `httpd.exe -k install` + `net start Apache2.4`). 이게
+   안 되어 있으면 뒤의 모든 "적용" 테스트가 reload 단계에서 실패합니다.
 1. `.env`의 모든 `APACHE_*`, `SSL_*` 경로를 실제 서버 값으로 설정하고
    `APACHE_COMMAND_RUNNER=real`로 설정.
 2. 앱을 기동하고 로그인.

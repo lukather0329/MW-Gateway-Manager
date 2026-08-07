@@ -124,7 +124,7 @@ New-NetFirewallRule -DisplayName "MW Gateway Manager (internal only)" `
 ## 9. 권한 설정 (중요 — 반드시 읽어주세요)
 
 이번 MVP는 지시서 10절의 4번 방식, 즉 **관리자 권한으로 Node 프로세스를 실행하는
-방식**을 채택했습니다 (Apache 설정 파일 쓰기 + `httpd.exe -k graceful` 실행에는
+방식**을 채택했습니다 (Apache 설정 파일 쓰기 + `httpd.exe -k restart` 실행에는
 해당 파일/서비스에 대한 쓰기 및 제어 권한이 필요하기 때문입니다).
 
 - **왜 필요한가**: `D:\xampp\apache\conf\...` 하위 파일 쓰기, `httpd.exe` 실행 권한이
@@ -148,6 +148,14 @@ New-NetFirewallRule -DisplayName "MW Gateway Manager (internal only)" `
 
 ## 10. 최초 배포 후 확인 절차
 
+0. **(가장 먼저) Apache가 Windows 서비스로 등록/실행 중인지 확인.**
+   `services.msc`에서 "Apache2.4"(또는 해당 서비스명)가 "실행 중"이어야 합니다.
+   아니라면 `httpd.exe -k install` 후 `net start Apache2.4` (관리자 권한 필요).
+   **이것이 안 되어 있으면 이 시스템의 모든 "적용"이 설정 재적용 단계에서
+   실패하고 자동 롤백됩니다** — 개발 중 실제로 재현/확인된 실패 모드입니다.
+   (참고로 Windows는 무중단 graceful 재적재 자체를 지원하지 않아 이 시스템은
+   `-k restart`를 사용합니다.) 자세한 내용은
+   [APACHE_SETUP.md](APACHE_SETUP.md#6-설정-재적용-reload)를 참고하세요.
 1. `http://<서버>:4000/api/health` 가 `{"ok":true}`를 반환하는지 확인.
 2. 관리 화면에 로그인.
 3. **Apache 상태** 메뉴에서 "최초 설정 마법사 검사"를 실행해 실제 경로/모듈/인증서가
