@@ -36,7 +36,7 @@ export class MockApacheCommandRunner implements ApacheCommandRunner {
     return (
       this.options.gracefulReloadResult ?? {
         code: 0,
-        stdout: 'mock: graceful reload not actually executed',
+        stdout: 'mock: reload not actually executed',
         stderr: '',
       }
     );
@@ -57,11 +57,12 @@ export class MockApacheCommandRunner implements ApacheCommandRunner {
       this.options.modulesResult ?? {
         code: 0,
         stdout: [
-          'proxy_module (shared)',
-          'proxy_http_module (shared)',
-          'proxy_wstunnel_module (shared)',
-          'rewrite_module (shared)',
-          'ssl_module (shared)',
+          'Loaded Modules:',
+          ' proxy_module (shared)',
+          ' proxy_http_module (shared)',
+          ' proxy_wstunnel_module (shared)',
+          ' rewrite_module (shared)',
+          ' ssl_module (shared)',
         ].join('\n'),
         stderr: '',
       }

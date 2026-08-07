@@ -34,6 +34,12 @@ export default async function setup() {
   process.env.DEFAULT_HEALTH_CHECK_TIMEOUT_MS = '500';
   process.env.APACHE_COMMAND_RUNNER = 'mock';
   process.env.APACHE_MOCK_PROCESS_RUNNING = 'true';
+  // Marker that this globalSetup actually ran and DATABASE_URL really was
+  // redirected to the throwaway DB above. helpers.ts refuses to run any
+  // destructive database operation unless this is set — see the comment
+  // there for why (a real dev.db got wiped once by a test invocation that
+  // skipped Vitest's config/globalSetup resolution).
+  process.env.MW_TEST_DB_ISOLATED = dbPath;
 
   fs.mkdirSync(path.dirname(process.env.APACHE_VHOSTS_PATH), { recursive: true });
   fs.writeFileSync(process.env.APACHE_VHOSTS_PATH, '# test vhosts\n', 'utf-8');

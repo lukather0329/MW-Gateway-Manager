@@ -28,10 +28,14 @@ export class ApacheModuleInspector {
   async check(): Promise<ModuleCheckResult> {
     const result = await this.runner.getModules();
     const raw = result.stdout;
+    // Real `httpd -M` output starts with a "Loaded Modules:" header line
+    // before the per-module lines (each ending in "(static)"/"(shared)").
+    // Only parse lines that actually look like a module entry, so the
+    // header (or any other stray line) never gets treated as a module name.
     const loadedModules = raw
       .split('\n')
       .map((line) => line.trim())
-      .filter((line) => line.length > 0)
+      .filter((line) => /\((static|shared)\)$/.test(line))
       .map((line) => line.split(' ')[0]);
 
     const missingRequired = REQUIRED_MODULES.filter(

@@ -66,7 +66,7 @@ export function ApacheStatusPage() {
       await api.post('/apache/graceful');
       reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'graceful reload 중 오류가 발생했습니다.');
+      setError(err instanceof ApiError ? err.message : '설정 재적용(reload) 중 오류가 발생했습니다.');
     } finally {
       setBusy(false);
     }
@@ -115,9 +115,13 @@ export function ApacheStatusPage() {
               문법 검사 실행
             </button>
             <button className="btn" disabled={busy} onClick={runGraceful}>
-              Graceful Reload 실행
+              설정 재적용 (Reload)
             </button>
           </div>
+          <p className="muted" style={{ marginTop: '0.5rem' }}>
+            Windows에서는 Apache가 무중단(graceful) 재적용을 지원하지 않아 <code>-k restart</code>로
+            동작합니다. 접속 중인 연결이 짧게 끊길 수 있습니다.
+          </p>
         </section>
       )}
 

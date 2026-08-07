@@ -72,7 +72,7 @@ export class ApacheRollbackService {
       restored: true,
       postRestoreSyntaxValid: true,
       postRestoreReloadCode: reload.code,
-      error: reload.code !== 0 ? reload.stderr || 'graceful reload 실패' : undefined,
+      error: reload.code !== 0 ? reload.stderr || '설정 재적용(reload) 실패' : undefined,
     };
   }
 }

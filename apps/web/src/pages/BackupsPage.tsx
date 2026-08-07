@@ -104,7 +104,7 @@ export function BackupsPage() {
       >
         <p>
           <strong>{restoreTarget?.folderName}</strong> 시점으로 Apache 설정을 복구합니다. 복구 후 문법 검사가 정상일 때만
-          graceful reload가 실행됩니다.
+          설정 재적용(reload)이 실행됩니다.
         </p>
       </ConfirmDialog>
     </div>

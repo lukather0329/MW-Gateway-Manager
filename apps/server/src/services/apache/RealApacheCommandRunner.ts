@@ -35,7 +35,19 @@ export class RealApacheCommandRunner implements ApacheCommandRunner {
   }
 
   gracefulReload(): Promise<ApacheCommandResult> {
-    return runExecFile(this.httpdExecutablePath, ['-k', 'graceful']);
+    // Windows' mpm_winnt does not implement Unix-style graceful reload:
+    // `-k graceful` against an Apache instance running as a Windows
+    // service fails with "make_sock: could not bind to address ..." (it
+    // tries to bind a second listener instead of signaling the running
+    // service). `-k restart` is the command that actually works on
+    // Windows/mpm_winnt — confirmed by testing against a real XAMPP
+    // install running as an installed "Apache2.4" service. It briefly
+    // drops in-flight connections (unlike true Unix graceful), which is
+    // an accepted tradeoff since there is no working alternative on this
+    // platform. The method name stays gracefulReload() to match the
+    // ApacheCommandRunner interface/call sites; only the underlying
+    // httpd.exe flag differs.
+    return runExecFile(this.httpdExecutablePath, ['-k', 'restart']);
   }
 
   getVersion(): Promise<ApacheCommandResult> {

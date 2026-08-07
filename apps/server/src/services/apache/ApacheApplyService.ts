@@ -30,8 +30,10 @@ export interface ApplyOutcome {
 
 /**
  * Orchestrates the full safe-apply pipeline described in the spec section
- * 6.7: backup -> write/remove candidate file -> syntax test -> graceful
- * reload -> process check -> rollback on any Apache-level failure.
+ * 6.7: backup -> write/remove candidate file -> syntax test -> reload
+ * (`-k restart` on Windows — mpm_winnt has no working graceful reload, see
+ * RealApacheCommandRunner.gracefulReload) -> process check -> rollback on
+ * any Apache-level failure.
  *
  * Does not perform the target-program connectivity check (spec step 9) —
  * that is intentionally a separate, injectable concern (see
@@ -152,7 +154,7 @@ export class ApacheApplyService {
         reloadCode: reload.code,
         processRunning: null,
         rolledBack: rollback.restored,
-        message: `Apache graceful reload 실패로 이전 설정으로 복구${
+        message: `Apache 설정 재적용(reload) 실패로 이전 설정으로 복구${
           rollback.restored ? '했습니다' : '를 시도했으나 실패했습니다'
         }.`,
         backupFolderName: backup.folderName,
