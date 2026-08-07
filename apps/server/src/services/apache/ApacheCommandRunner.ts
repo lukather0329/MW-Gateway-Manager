@@ -7,6 +7,16 @@ export interface ApacheCommandResult {
 export interface ApacheStatusResult {
   running: boolean;
   pid?: number;
+  /**
+   * Every httpd.exe PID currently running (parent + worker processes).
+   * Used by ApacheApplyService to detect a "successful" reload that didn't
+   * actually happen: on Windows, `-k restart` can return exit code 0 with
+   * empty stdout/stderr even when it fails to signal the service (the
+   * error is written straight to Apache's own error.log instead) — the
+   * process set staying byte-for-byte identical across a reload is the
+   * only reliable signal that nothing actually restarted.
+   */
+  pids?: number[];
 }
 
 /**

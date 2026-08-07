@@ -75,9 +75,13 @@ export class RealApacheCommandRunner implements ApacheCommandRunner {
       return { running: false };
     }
 
-    const firstLine = lines[0].replace(/"/g, '');
-    const pidText = firstLine.split(',')[1];
-    const pid = pidText ? Number(pidText) : undefined;
-    return { running: true, pid: Number.isFinite(pid) ? pid : undefined };
+    const pids = lines
+      .map((line) => {
+        const pidText = line.replace(/"/g, '').split(',')[1];
+        return pidText ? Number(pidText) : NaN;
+      })
+      .filter((pid) => Number.isFinite(pid));
+
+    return { running: pids.length > 0, pid: pids[0], pids };
   }
 }

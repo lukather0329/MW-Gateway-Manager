@@ -12,6 +12,23 @@ import { ApacheCommandRunner } from './ApacheCommandRunner';
 
 export interface ApplyPaths extends BackupPaths {}
 
+/**
+ * True only when both PID sets are known, non-empty, and identical.
+ * Used to catch a Windows-specific failure mode: `httpd -k restart` can
+ * return exit code 0 with no stderr even when it fails to signal the
+ * running service (the error goes straight to Apache's own error.log
+ * instead) — confirmed by testing against a real, permission-restricted
+ * XAMPP install. If the exact same httpd.exe process set is still running
+ * after a "successful" reload, nothing actually restarted.
+ */
+function samePidSet(before?: number[], after?: number[]): boolean {
+  if (!before || !after || before.length === 0 || after.length === 0) return false;
+  if (before.length !== after.length) return false;
+  const sortedBefore = [...before].sort((a, b) => a - b);
+  const sortedAfter = [...after].sort((a, b) => a - b);
+  return sortedBefore.every((pid, i) => pid === sortedAfter[i]);
+}
+
 export type ApplyAction = 'CREATE' | 'UPDATE' | 'DELETE';
 
 export interface ApplyOutcome {
@@ -141,6 +158,8 @@ export class ApacheApplyService {
       };
     }
 
+    const statusBefore = await this.runner.getStatus();
+
     const reload = await this.runner.gracefulReload();
     if (reload.code !== 0) {
       const rollback = await this.rollbackService.rollbackTo(backup.folderPath, paths);
@@ -177,6 +196,25 @@ export class ApacheApplyService {
         message: `Apache 프로세스가 확인되지 않아 이전 설정으로 복구${
           rollback.restored ? '했습니다' : '를 시도했으나 실패했습니다'
         }.`,
+        backupFolderName: backup.folderName,
+      };
+    }
+
+    if (statusBefore.running && samePidSet(statusBefore.pids, status.pids)) {
+      const rollback = await this.rollbackService.rollbackTo(backup.folderPath, paths);
+      return {
+        success: false,
+        action,
+        fileName,
+        content,
+        syntaxTestRaw: test.raw,
+        syntaxValid: true,
+        reloadCode: reload.code,
+        processRunning: true,
+        rolledBack: rollback.restored,
+        message: `설정 재적용 명령은 성공을 반환했지만 Apache 프로세스가 실제로 재시작되지 않아(변경사항이 반영되지 않아) 이전 설정으로 복구${
+          rollback.restored ? '했습니다' : '를 시도했으나 실패했습니다'
+        }. Apache 서비스 제어 권한을 확인하세요.`,
         backupFolderName: backup.folderName,
       };
     }

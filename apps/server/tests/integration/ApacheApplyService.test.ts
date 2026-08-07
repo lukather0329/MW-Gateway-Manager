@@ -65,6 +65,41 @@ describe('ApacheApplyService (real filesystem via temp dir, mocked httpd.exe)', 
     expect(written).toContain('ServerName camera.roboworks.co.kr');
   });
 
+  it('rolls back when reload reports success (exit 0) but the httpd.exe process set never changed', async () => {
+    // Reproduces a real bug found by testing against a real, permission-
+    // restricted XAMPP install: `-k restart` returned exit 0 with no
+    // stderr while completely failing to signal the Windows service (the
+    // error only showed up in Apache's own error.log). The same PID set
+    // before and after is the only signal that nothing actually reloaded.
+    const runner = new MockApacheCommandRunner({
+      statusResult: { running: true, pid: 900, pids: [900, 13328] },
+    });
+    const service = buildService(runner);
+
+    const outcome = await service.applyProgramConfig(program, settings, paths, 'tester', 'CREATE');
+
+    expect(outcome.success).toBe(false);
+    expect(outcome.reloadCode).toBe(0);
+    expect(outcome.processRunning).toBe(true);
+    expect(outcome.rolledBack).toBe(true);
+    expect(outcome.message).toContain('실제로 재시작되지 않아');
+    await expect(
+      fs.access(path.join(paths.managedSitesPath, 'camera.roboworks.co.kr.conf'))
+    ).rejects.toThrow();
+  });
+
+  it('does NOT roll back when the runner cannot report pids (older/unknown status source)', async () => {
+    // Guards against the new same-PID-set check ever becoming a false
+    // positive for a runner that simply doesn't populate `pids`.
+    const runner = new MockApacheCommandRunner({ statusResult: { running: true, pid: 123 } });
+    const service = buildService(runner);
+
+    const outcome = await service.applyProgramConfig(program, settings, paths, 'tester', 'CREATE');
+
+    expect(outcome.success).toBe(true);
+    expect(outcome.rolledBack).toBe(false);
+  });
+
   it('rolls back and leaves mw-sites untouched when the syntax check fails', async () => {
     const runner = new MockApacheCommandRunner({
       testConfigResult: { code: 1, stdout: '', stderr: 'Syntax error on line 3' },
