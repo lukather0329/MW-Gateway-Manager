@@ -40,6 +40,10 @@ export const env = {
   defaultHealthCheckTimeoutMs: Number(
     process.env.DEFAULT_HEALTH_CHECK_TIMEOUT_MS ?? 3000
   ),
+  // Background scheduler that re-checks every enabled program's health on
+  // an interval, independent of manual "연결 테스트" clicks or apply-time
+  // checks (see NEXT_STEPS.md — this was the top-priority follow-up).
+  healthCheckIntervalMs: Number(process.env.HEALTH_CHECK_INTERVAL_MS ?? 60000),
 
   // "mock" (default, safe for dev/CI) or "real" (only on the actual Windows
   // Server host where httpd.exe exists and Apache must actually be controlled).

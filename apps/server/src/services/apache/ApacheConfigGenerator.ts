@@ -40,14 +40,22 @@ export class ApacheConfigGenerator {
     return { fileName, filePath, content };
   }
 
-  private buildProxyBlock(program: ProgramConfigInput): string {
+  private buildProxyBlock(program: ProgramConfigInput, forwardedProto?: 'https'): string {
     const targetBase = `${program.targetProtocol}://${program.targetHost}:${program.targetPort}`;
+    // Tells the backend the original request was HTTPS, even though this
+    // proxy always talks to it over plain HTTP/WS — without this, a backend
+    // that itself forces an HTTP->HTTPS redirect (common on embedded device
+    // web UIs) never sees a "secure" request and redirects forever.
+    const forwardedProtoLine = forwardedProto
+      ? [`    RequestHeader set X-Forwarded-Proto "${forwardedProto}"`, '']
+      : [];
 
     if (!program.websocketEnabled) {
       return [
         '    ProxyPreserveHost On',
         '    ProxyRequests Off',
         '',
+        ...forwardedProtoLine,
         `    ProxyPass / ${targetBase}/`,
         `    ProxyPassReverse / ${targetBase}/`,
       ].join('\n');
@@ -60,6 +68,7 @@ export class ApacheConfigGenerator {
       '    ProxyPreserveHost On',
       '    ProxyRequests Off',
       '',
+      ...forwardedProtoLine,
       '    RewriteEngine On',
       '    RewriteCond %{HTTP:Upgrade} =websocket [NC]',
       `    RewriteRule ^/(.*)$ ${wsTarget}/$1 [P,L]`,
@@ -89,7 +98,7 @@ export class ApacheConfigGenerator {
     program: ProgramConfigInput,
     settings: ApacheSettingsInput
   ): string {
-    const proxyBlock = this.buildProxyBlock(program);
+    const proxyBlock = this.buildProxyBlock(program, 'https');
     return [
       '<VirtualHost *:80>',
       `    ServerName ${program.domain}`,

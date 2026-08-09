@@ -119,6 +119,41 @@ describe('ApacheConfigGenerator', () => {
     expect(result.content).not.toContain('[P,L]');
   });
 
+  it('tells the backend the original request was HTTPS, only inside the SSL VirtualHost', () => {
+    const result = generator.generate(
+      {
+        domain: 'camera.roboworks.co.kr',
+        targetProtocol: 'http',
+        targetHost: '127.0.0.1',
+        targetPort: 3101,
+        websocketEnabled: false,
+        sslEnabled: true,
+      },
+      settings,
+      managedSitesPath
+    );
+    const httpBlock = result.content.split('<VirtualHost *:443>')[0];
+    const sslBlock = result.content.split('<VirtualHost *:443>')[1];
+    expect(httpBlock).not.toContain('X-Forwarded-Proto');
+    expect(sslBlock).toContain('RequestHeader set X-Forwarded-Proto "https"');
+  });
+
+  it('does not add X-Forwarded-Proto when SSL is disabled', () => {
+    const result = generator.generate(
+      {
+        domain: 'plain.roboworks.co.kr',
+        targetProtocol: 'http',
+        targetHost: '127.0.0.1',
+        targetPort: 8080,
+        websocketEnabled: false,
+        sslEnabled: false,
+      },
+      settings,
+      managedSitesPath
+    );
+    expect(result.content).not.toContain('X-Forwarded-Proto');
+  });
+
   it('includes distinct log file names per VirtualHost', () => {
     const result = generator.generate(
       {

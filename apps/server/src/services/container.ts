@@ -7,9 +7,11 @@ import { ApacheApplyService } from './apache/ApacheApplyService';
 import { ApacheModuleInspector } from './apache/ApacheModuleInspector';
 import { ApacheSetupWizardService } from './apache/ApacheSetupWizardService';
 import { HealthCheckService } from './health-check/HealthCheckService';
+import { HealthCheckScheduler } from './health-check/HealthCheckScheduler';
 import { AuditService } from './audit/AuditService';
 import { AuthService } from './auth/AuthService';
 import { SettingsService } from './settings/SettingsService';
+import { env } from '../config/env';
 
 // Simple hand-wired composition root — no DI framework, kept intentionally
 // small for this MVP's scale (spec section 3.2: avoid over-engineering).
@@ -35,6 +37,12 @@ const healthCheckService = new HealthCheckService();
 const auditService = new AuditService();
 const authService = new AuthService();
 const settingsService = new SettingsService();
+const healthCheckScheduler = new HealthCheckScheduler(
+  healthCheckService,
+  settingsService,
+  auditService,
+  env.healthCheckIntervalMs
+);
 
 export const services = {
   apacheRunner,
@@ -46,6 +54,7 @@ export const services = {
   apacheModuleInspector,
   apacheSetupWizardService,
   healthCheckService,
+  healthCheckScheduler,
   auditService,
   authService,
   settingsService,
