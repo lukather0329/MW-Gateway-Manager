@@ -1,7 +1,14 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Drawing;
 
 namespace MwGatewayGitSync;
+
+internal static class AppInfo
+{
+    public const string WindowTitle = "Gateway Git Sync";
+    public const string ProjectName = "MW-Gateway-Manager";
+    public const string RepoUrl = "https://github.com/lukather0329/MW-Gateway-Manager";
+}
 
 internal static class Program
 {
@@ -22,7 +29,7 @@ internal static class Program
             {
                 MessageBox.Show(
                     "Git 저장소를 찾지 못했습니다.",
-                    "MW Gateway Git Sync",
+                    AppInfo.WindowTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
                 return;
@@ -38,28 +45,46 @@ internal static class RepositoryLocator
 {
     public static string? Find(string? requestedPath)
     {
-        foreach (var start in new[]
+        var candidates = new List<string>();
+        if (!string.IsNullOrWhiteSpace(requestedPath))
         {
-            requestedPath,
-            Environment.CurrentDirectory,
-            AppContext.BaseDirectory,
-        })
-        {
-            if (string.IsNullOrWhiteSpace(start))
-            {
-                continue;
-            }
+            candidates.Add(requestedPath);
+        }
 
-            var directory = new DirectoryInfo(Path.GetFullPath(start));
-            while (directory is not null)
+        candidates.Add(Environment.CurrentDirectory);
+        candidates.Add(AppContext.BaseDirectory);
+
+        var baseDirectoryParent = Directory.GetParent(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar));
+        if (baseDirectoryParent is not null)
+        {
+            candidates.Add(baseDirectoryParent.FullName);
+        }
+
+        foreach (var start in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var match = FindRepositoryFrom(start);
+            if (match is not null)
             {
-                if (Directory.Exists(Path.Combine(directory.FullName, ".git")))
-                {
-                    return directory.FullName;
-                }
-                directory = directory.Parent;
+                return match;
             }
         }
+
+        return null;
+    }
+
+    private static string? FindRepositoryFrom(string start)
+    {
+        var directory = new DirectoryInfo(Path.GetFullPath(start));
+        while (directory is not null)
+        {
+            if (Directory.Exists(Path.Combine(directory.FullName, ".git")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
         return null;
     }
 }
@@ -139,7 +164,7 @@ internal sealed class SyncForm : Form
 
     private void ConfigureWindow()
     {
-        Text = "MW Gateway Git Sync";
+        Text = AppInfo.WindowTitle;
         Width = 900;
         Height = 700;
         MinimumSize = new Size(760, 600);
@@ -169,7 +194,7 @@ internal sealed class SyncForm : Form
 
         var title = new Label
         {
-            Text = "MW Gateway Git 동기화",
+            Text = $"{AppInfo.ProjectName} Git 동기화",
             AutoSize = true,
             Font = new Font("Segoe UI", 20, FontStyle.Bold),
             Margin = new Padding(0, 0, 0, 6),
@@ -190,7 +215,7 @@ internal sealed class SyncForm : Form
             Margin = new Padding(0, 12, 0, 5),
         };
         messageBox.Dock = DockStyle.Top;
-        messageBox.PlaceholderText = "예: Apache 적용 파이프라인 롤백 로직 수정";
+        messageBox.PlaceholderText = "예: Apache 적용 로직 수정";
         messageBox.BackColor = Color.FromArgb(32, 36, 43);
         messageBox.ForeColor = Color.WhiteSmoke;
         messageBox.BorderStyle = BorderStyle.FixedSingle;
@@ -222,7 +247,7 @@ internal sealed class SyncForm : Form
         };
         var safety = new Label
         {
-            Text = "Pull은 fast-forward 전용입니다. 강제 Push와 자동 충돌 해결은 수행하지 않습니다.",
+            Text = "Pull은 fast-forward만 허용합니다. 강제 Push나 자동 충돌 해결은 수행하지 않습니다.",
             AutoSize = true,
             ForeColor = Color.FromArgb(160, 166, 178),
             Margin = new Padding(0, 10, 0, 0),
@@ -234,6 +259,7 @@ internal sealed class SyncForm : Form
         root.Controls.Add(commitLabel);
         root.Controls.Add(messageBox);
         root.Controls.Add(buttons);
+        root.Controls.Add(resultLabel);
         root.Controls.Add(resultBox);
         root.Controls.Add(safety);
         Controls.Add(root);
@@ -301,7 +327,7 @@ internal sealed class SyncForm : Form
             {
                 ShowResult(
                     "Pull 중단",
-                    "로컬 변경 파일이 있습니다. 먼저 Commit & Push 하거나 정리하세요.",
+                    "로컬 변경 파일이 있습니다. 먼저 Commit & Push 하거나 정리해주세요.",
                     false);
                 return;
             }
@@ -317,7 +343,7 @@ internal sealed class SyncForm : Form
         {
             MessageBox.Show(
                 "두 글자 이상의 커밋 메시지를 입력하세요.",
-                "MW Gateway Git Sync",
+                AppInfo.WindowTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
             return;
@@ -383,25 +409,30 @@ internal sealed class SyncForm : Form
             {
                 ShowResult(
                     "GitHub 열기 실패",
-                    "원격 저장소(origin)가 아직 설정되어 있지 않습니다. 'git remote add origin <URL>'로 먼저 등록하세요.",
+                    "원격 저장소(origin)가 아직 설정되어 있지 않습니다. 'git remote add origin <URL>'로 먼저 등록해주세요.",
                     false);
                 return;
             }
 
-            var url = remote.Output.Trim();
-            // git@github.com:owner/repo.git -> https://github.com/owner/repo
-            if (url.StartsWith("git@github.com:", StringComparison.Ordinal))
-            {
-                url = "https://github.com/" + url["git@github.com:".Length..];
-            }
-            if (url.EndsWith(".git", StringComparison.Ordinal))
-            {
-                url = url[..^".git".Length];
-            }
-
+            var url = NormalizeRemoteUrl(remote.Output.Trim());
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             ShowResult("GitHub 열기", url, true);
         });
+    }
+
+    private static string NormalizeRemoteUrl(string url)
+    {
+        if (url.StartsWith("git@github.com:", StringComparison.Ordinal))
+        {
+            url = "https://github.com/" + url["git@github.com:".Length..];
+        }
+
+        if (url.EndsWith(".git", StringComparison.Ordinal))
+        {
+            url = url[..^".git".Length];
+        }
+
+        return url;
     }
 
     private async Task RunBusy(Func<Task> action)
