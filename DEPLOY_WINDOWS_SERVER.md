@@ -34,6 +34,10 @@ npm run build
 
 `npm run build`는 `packages/shared` → `apps/server` → `apps/web` 순서로 빌드하며,
 `apps/server/dist`(Node 실행 산출물)와 `apps/web/dist`(정적 파일)가 생성됩니다.
+`apps/server`의 빌드는 `prisma generate`를 먼저 실행한 뒤 TypeScript를 컴파일합니다
+(Prisma 클라이언트 타입이 없으면 `SystemSetting` 등 모델 관련 타입 오류가 납니다 —
+`npm install`의 `postinstall` 훅으로도 자동 생성되지만, 빌드 스크립트 자체에도
+안전장치로 넣어뒀습니다).
 
 ## 3. 환경변수 설정
 
